@@ -20,4 +20,4 @@ Bienvenido a mi repositorio de proyectos personales. Aquí muestro mis habilidad
 [Enlace a GitHub Pages o hosting]
 
 ## 📞 Contacto
-[Tu email] | [Tu LinkedIn]
+[cistan123@gmail.com| [https://www.linkedin.com/in/ecristancho/]
