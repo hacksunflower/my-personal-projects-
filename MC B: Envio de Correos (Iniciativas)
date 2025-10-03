@@ -1,0 +1,203 @@
+/**
+ * ==================================================
+ * MICROSERVICIO DE LECTURA Y GENERACIÓN DE CORREOS
+ * Solo lectura - Sin envío real
+ * ==================================================
+ */
+
+// 🔧 CONFIGURACIÓN
+var CONFIG = {
+  HOJA_INICIATIVAS: "Control Iniciativas",
+  HOJA_OWNERS: "Sandbox Owners"
+};
+
+/**
+ * 🎯 FUNCIÓN PRINCIPAL - Leer y generar notificaciones
+ */
+function generarNotificaciones() {
+  Logger.log("📖 Leyendo datos y generando notificaciones...");
+  
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var hojaIniciativas = ss.getSheetByName(CONFIG.HOJA_INICIATIVAS);
+    var hojaOwners = ss.getSheetByName(CONFIG.HOJA_OWNERS);
+
+    if (!hojaIniciativas || !hojaOwners) {
+      Logger.log("❌ No se encontraron las hojas necesarias");
+      return;
+    }
+
+    // 1. Construir mapa de owners
+    var ownersMap = construirMapaOwners(hojaOwners);
+    Logger.log("✅ Mapa de owners construido: " + JSON.stringify(ownersMap));
+    
+    // 2. Obtener iniciativas pendientes
+    var iniciativasPendientes = obtenerIniciativasPendientes(hojaIniciativas, ownersMap);
+    Logger.log("📋 Total iniciativas a notificar: " + iniciativasPendientes.length);
+    
+    // 3. Generar notificaciones (solo logs)
+    for (var i = 0; i < iniciativasPendientes.length; i++) {
+      var iniciativa = iniciativasPendientes[i];
+      generarNotificacionLog(iniciativa);
+    }
+    
+    Logger.log("✅ Proceso de lectura completado. Revisa los logs above ↑");
+    
+  } catch (e) {
+    Logger.log("❌ Error: " + e.toString());
+  }
+}
+
+/**
+ * 👥 Construir mapa de owners
+ */
+function construirMapaOwners(hojaOwners) {
+  var datos = hojaOwners.getDataRange().getValues();
+  var ownersMap = {};
+  
+  for (var i = 1; i < datos.length; i++) {
+    var sandbox = datos[i][0];
+    var nombreOwner = datos[i][4];
+    
+    if (sandbox && nombreOwner) {
+      var email = generarEmailOwner(nombreOwner);
+      ownersMap[sandbox.toString().trim().toUpperCase()] = email;
+    }
+  }
+  
+  return ownersMap;
+}
+
+/**
+ * 📧 Generar email from nombre
+ */
+function generarEmailOwner(nombreOwner) {
+  var nombreLimpio = nombreOwner.toString().trim().toLowerCase()
+    .replace(/\s+/g, '.')
+    .split('@')[0];
+  return nombreLimpio + "@empresa.com";
+}
+
+/**
+ * 📋 Obtener iniciativas pendientes de notificación
+ */
+function obtenerIniciativasPendientes(hojaIniciativas, ownersMap) {
+  var datos = hojaIniciativas.getDataRange().getValues();
+  var hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  var iniciativas = [];
+  
+  for (var j = 1; j < datos.length; j++) {
+    var codigo = datos[j][0];
+    var nombre = datos[j][1];
+    var sandbox = datos[j][2];
+    var estado = datos[j][3];
+    var fechaVencimiento = datos[j][6];
+    
+    if (!codigo || !nombre || !sandbox) continue;
+    
+    // Convertir y validar fecha
+    if (typeof fechaVencimiento === 'string') {
+      fechaVencimiento = new Date(fechaVencimiento);
+    }
+    if (isNaN(fechaVencimiento)) continue;
+    
+    fechaVencimiento.setHours(0, 0, 0, 0);
+    var diasRestantes = Math.floor((fechaVencimiento - hoy) / (1000 * 60 * 60 * 24));
+    
+    // Verificar si necesita notificación
+    if (estado === "Vencida" || (diasRestantes <= 7 && diasRestantes >= 0)) {
+      var emailOwner = ownersMap[sandbox.toString().trim().toUpperCase()];
+      
+      if (emailOwner) {
+        iniciativas.push({
+          codigo: codigo,
+          nombre: nombre,
+          sandbox: sandbox,
+          estado: estado,
+          email: emailOwner,
+          diasRestantes: diasRestantes,
+          fechaVencimiento: fechaVencimiento
+        });
+      }
+    }
+  }
+  
+  return iniciativas;
+}
+
+/**
+ * 📝 Generar notificación solo en logs
+ */
+function generarNotificacionLog(iniciativa) {
+  var nombreOwner = iniciativa.email.split('@')[0].replace(/\./g, ' ');
+  var fechaFormateada = Utilities.formatDate(iniciativa.fechaVencimiento, Session.getScriptTimeZone(), "dd/MM/yyyy");
+  
+  Logger.log("\n==========================================");
+  Logger.log("📧 NOTIFICACIÓN GENERADA (No enviada)");
+  Logger.log("==========================================");
+  Logger.log("➡️  Destinatario: " + iniciativa.email);
+  Logger.log("📦 Sandbox: " + iniciativa.sandbox);
+  Logger.log("📋 Código: " + iniciativa.codigo);
+  Logger.log("🏷️  Nombre: " + iniciativa.nombre);
+  Logger.log("📊 Estado: " + iniciativa.estado);
+  Logger.log("⏰ Días restantes: " + iniciativa.diasRestantes);
+  Logger.log("📅 Fecha vencimiento: " + fechaFormateada);
+  Logger.log("==========================================");
+  Logger.log("💬 Mensaje:");
+  Logger.log("Estimado/a " + nombreOwner + ",");
+  Logger.log("La iniciativa \"" + iniciativa.nombre + "\" (Código: " + iniciativa.codigo + ")");
+  Logger.log("asociada al Sandbox \"" + iniciativa.sandbox + "\" tiene el estado: " + iniciativa.estado + ".");
+  Logger.log("Días restantes: " + iniciativa.diasRestantes);
+  Logger.log("Fecha de Vencimiento: " + fechaFormateada);
+  Logger.log("Por favor, proceda con la renovación en caso de ser necesario.");
+  Logger.log("==========================================\n");
+}
+
+/**
+ * 🔍 Función para ver datos crudos
+ */
+function verDatosCrudos() {
+  Logger.log("👀 Viendo datos crudos...");
+  
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var hojaIniciativas = ss.getSheetByName(CONFIG.HOJA_INICIATIVAS);
+    var hojaOwners = ss.getSheetByName(CONFIG.HOJA_OWNERS);
+
+    if (!hojaIniciativas || !hojaOwners) {
+      Logger.log("❌ No se encontraron las hojas");
+      return;
+    }
+
+    // Ver owners
+    var datosOwners = hojaOwners.getDataRange().getValues();
+    Logger.log("👥 Owners (primeras 5 filas):");
+    for (var i = 1; i < Math.min(6, datosOwners.length); i++) {
+      Logger.log("Fila " + i + ": " + JSON.stringify(datosOwners[i]));
+    }
+    
+    // Ver iniciativas
+    var datosIniciativas = hojaIniciativas.getDataRange().getValues();
+    Logger.log("\n📋 Iniciativas (primeras 5 filas):");
+    for (var j = 1; j < Math.min(6, datosIniciativas.length); j++) {
+      Logger.log("Fila " + j + ": " + JSON.stringify(datosIniciativas[j]));
+    }
+    
+  } catch (e) {
+    Logger.log("❌ Error: " + e.toString());
+  }
+}
+
+/**
+ * 🧪 Función de prueba simple
+ */
+function pruebaSimple() {
+  Logger.log("🧪 Probando lectura simple...");
+  generarNotificaciones();
+}
+
+// 🎯 EJECUTAR ESTAS FUNCIONES:
+// generarNotificaciones() - Genera logs de todas las notificaciones
+// verDatosCrudos() - Muestra los datos crudos de las hojas
+// pruebaSimple() - Ejecuta el proceso completo

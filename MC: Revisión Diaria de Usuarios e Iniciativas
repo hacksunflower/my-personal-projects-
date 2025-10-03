@@ -1,0 +1,54 @@
+function obtenerMapaSandboxOwners() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var hojaOwners = ss.getSheetByName("Sandbox owners");
+  var datosOwners = hojaOwners.getDataRange().getValues();
+
+  var ownersMap = {};
+  for (var i = 1; i < datosOwners.length; i++) {
+    var sandboxClave = datosOwners[i][0]; // Col A: Nombre del Sandbox
+    var emailOwner = datosOwners[i][4];   // Col E: E-mail
+
+    if (sandboxClave && emailOwner) {
+      // Normalizar: eliminar espacios, mayúsculas/minúsculas
+      var claveNormalizada = sandboxClave.toString().trim().toUpperCase();
+      ownersMap[claveNormalizada] = emailOwner;
+    }
+  }
+
+  Logger.log("Mapa Owners: " + JSON.stringify(ownersMap));
+  return ownersMap;
+}
+
+function revisarCartasResponsivas() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var hojasCartas = ["RISK", "T&C", "AUDIT", "TECH", "CYBER"];
+  var ownersMap = obtenerMapaSandboxOwners();
+
+  hojasCartas.forEach(function(nombreHoja) {
+    var hoja = ss.getSheetByName(nombreHoja);
+    if (!hoja) {
+      Logger.log("No existe la hoja: " + nombreHoja);
+      return;
+    }
+
+    var datos = hoja.getDataRange().getValues();
+    for (var i = 1; i < datos.length; i++) {
+      var carta = datos[i][0];  // Col A: Carta
+      var fechaAlta = datos[i][1];
+      var fechaVenc = datos[i][2];
+      var estado = datos[i][3];
+      var activo = datos[i][4];
+
+      var claveNormalizada = nombreHoja.trim().toUpperCase();
+      var emailOwner = ownersMap[claveNormalizada];
+
+      if (!emailOwner) {
+        Logger.log("No se encontró owner para el dominio: " + nombreHoja);
+        continue;
+      }
+
+      // Aquí podrías invocar al microservicio de correos
+      Logger.log("Se encontró owner " + emailOwner + " para el dominio: " + nombreHoja);
+    }
+  });
+}

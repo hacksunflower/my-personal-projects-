@@ -1,0 +1,160 @@
+/**
+ * MC 5: Utilidades y protección de fórmulas
+ * - Asegura que las fórmulas no sean sobrescritas.
+ * - Restringe cambios en columnas con "Activo/Vencida".
+ * - Solo permite escritura en columnas seguras (ej: Fechas).
+ */
+
+/*******************  MC 5 – Utilidades (actualizado)  *******************/
+
+// Hojas de dominio
+var HOJAS_DOMINIO = ["RISK","T&C","AUDIT","TECH","CYBER"];
+
+/**
+ * Ejecuta una vez para aplicar protección por hoja:
+ * - Dominios: solo B2:B editable (Fecha de Alta)
+ * - Iniciativas de DATA: solo E2:E y F2:F editables
+ */
+function aplicarProtecciones() {
+  var ss = SpreadsheetApp.getActive();
+
+  // Dominios
+  HOJAS_DOMINIO.forEach(function(nombre){
+    var sh = ss.getSheetByName(nombre);
+    if (!sh) return;
+
+    // Quitar protecciones previas tipo hoja
+    sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(function(p){ try{ p.remove(); }catch(e){} });
+
+    var prot = sh.protect().setDescription("Protección de fórmulas ("+nombre+")");
+    prot.setUnprotectedRanges([ sh.getRange("B2:B") ]); // Fecha de Alta
+    // Asegurar editor actual
+    prot.addEditor(Session.getEffectiveUser());
+    try {
+      var others = prot.getEditors().filter(function(u){ return u.getEmail && u.getEmail() !== Session.getEffectiveUser().getEmail(); });
+      if (others.length) prot.removeEditors(others);
+    } catch(e) {}
+  });
+
+  // Iniciativas
+  var si = ss.getSheetByName("Iniciativas de DATA");
+  if (si) {
+    si.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(function(p){ try{ p.remove(); }catch(e){} });
+
+    var protIni = si.protect().setDescription("Protección de fórmulas (Iniciativas de DATA)");
+    protIni.setUnprotectedRanges([ si.getRange("E2:E"), si.getRange("F2:F") ]); // Recepción y Mesa Data
+    protIni.addEditor(Session.getEffectiveUser());
+    try {
+      var others2 = protIni.getEditors().filter(function(u){ return u.getEmail && u.getEmail() !== Session.getEffectiveUser().getEmail(); });
+      if (others2.length) protIni.removeEditors(others2);
+    } catch(e) {}
+  }
+}
+
+/**
+ * Guardia: bloquea edición fuera de las columnas permitidas y
+ * repone la fórmula si tocan una columna calculada (tomando la de la fila 2).
+ */
+function onEdit(e){
+  try{
+    var sh = e.range.getSheet();
+    var r = e.range.getRow();
+    var c = e.range.getColumn();
+    var nombre = sh.getName();
+
+    if (r === 1) return; // cabeceras
+
+    // Dominios: solo B es editable
+    if (HOJAS_DOMINIO.indexOf(nombre) > -1){
+      if (c !== 2) {
+        // Reponer fórmula si tocaron C (vencimiento) o D (estado)
+        if (c === 3 || c === 4) reaplicarFormulaDesdeFila2_(sh, r, c);
+        // Revertir edición
+        e.range.setValue(e.oldValue || sh.getRange(r,c).getDisplayValue());
+        toast_("Columna protegida. Edita solo 'Fecha de Alta' (B).");
+      }
+      return;
+    }
+
+    // Iniciativas: solo E y F son editables; G es calculada
+    if (nombre === "Iniciativas de DATA"){
+      if (c !== 5 && c !== 6) {
+        if (c === 7) reaplicarFormulaDesdeFila2_(sh, r, c); // Vencimiento
+        e.range.setValue(e.oldValue || sh.getRange(r,c).getDisplayValue());
+        toast_("Columna protegida. Edita solo 'Fecha de Recepción' (E) o 'Fecha de Autorización Mesa Data' (F).");
+      }
+      return;
+    }
+  }catch(err){
+    Logger.log("onEdit error: "+err);
+  }
+}
+
+/** Repone la fórmula de la columna tomando la plantilla de la fila 2 (R1C1) */
+function reaplicarFormulaDesdeFila2_(hoja, fila, col){
+  var f = hoja.getRange(2, col).getFormulaR1C1();
+  if (f) hoja.getRange(fila, col).setFormulaR1C1(f);
+}
+
+/** Toast pequeño en la UI */
+function toast_(msg){ SpreadsheetApp.getActive().toast(msg, "Sandbox 2.0", 3); }
+
+/**
+ * Mapa Sandbox → email (desde hoja "Sandbox Owners")
+ * A: Nombre del Sandbox | E: E-mail
+ */
+function obtenerMapaSandboxOwners(hojaOwners) {
+  var datos = hojaOwners.getDataRange().getValues();
+  var mapa = {};
+  for (var i = 1; i < datos.length; i++) {
+    var sandbox = (datos[i][0] || "").toString().trim().toUpperCase(); // Col A
+    var email   = (datos[i][4] || "").toString().trim();                // Col E
+    if (sandbox && email) mapa[sandbox] = email;
+  }
+  return mapa;
+}
+
+
+/**
+ * Utilidad: Genera mapa de sandbox owners
+ */
+function obtenerMapaSandboxOwners(hojaOwners) {
+  var datosOwners = hojaOwners.getDataRange().getValues();
+  var ownersMap = {};
+  for (var i = 1; i < datosOwners.length; i++) {
+    var sandbox = datosOwners[i][0]; // Col A: Nombre del Sandbox
+    var emailOwner = datosOwners[i][4]; // Col E: Correo del Owner
+    if (sandbox && emailOwner) {
+      ownersMap[sandbox.trim().toUpperCase()] = emailOwner.trim();
+    }
+  }
+  return ownersMap;
+}
+
+/**
+ * Microservicio 5: Utilidades
+ * Genera un mapa de Sandbox Owners desde la hoja "Sandbox Owners"
+ */
+function obtenerMapaSandboxOwners() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var hojaOwners = ss.getSheetByName("Sandbox Owners"); // ✅ corregido nombre de la hoja
+  if (!hojaOwners) {
+    Logger.log("❌ No se encontró la hoja 'Sandbox Owners'");
+    return {};
+  }
+
+  var datosOwners = hojaOwners.getDataRange().getValues();
+  var ownersMap = {};
+
+  for (var i = 1; i < datosOwners.length; i++) {
+    var sandbox = datosOwners[i][0];   // Columna A: Nombre del Sandbox
+    var emailOwner = datosOwners[i][4]; // Columna E: Correo del Owner
+
+    if (sandbox && emailOwner) {
+      ownersMap[sandbox.trim().toUpperCase()] = emailOwner.trim(); // ✅ guardamos en MAYÚSCULAS
+    }
+  }
+
+  Logger.log("Mapa de Owners generado: " + JSON.stringify(ownersMap));
+  return ownersMap;
+}

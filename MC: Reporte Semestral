@@ -1,0 +1,136 @@
+/**
+ * ==================================================
+ * MC: REPORTE SEMESTRAL DE CARTAS RESPONSIVAS
+ * ==================================================
+ 
+function MC_ReporteSemestral() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var dominios = ["RISK", "CYBER", "AUDIT", "T&C", "TECH"];
+  var fechaHoy = new Date();
+  var periodo = Utilities.formatDate(fechaHoy, Session.getScriptTimeZone(), "yyyy") +
+                "_S" + (fechaHoy.getMonth() < 6 ? "1" : "2"); // S1: Ene-Jun, S2: Jul-Dic
+  
+  dominios.forEach(function(dominio) {
+    var hojaDominio = ss.getSheetByName(dominio);
+    if (!hojaDominio) {
+      Logger.log("No existe hoja para dominio: " + dominio);
+      return;
+    }
+    
+    // Crear nueva hoja de reporte
+    var nombreReporte = "Reporte_" + dominio + "_" + periodo;
+    var hojaReporte = ss.getSheetByName(nombreReporte);
+    if (!hojaReporte) {
+      hojaReporte = ss.insertSheet(nombreReporte);
+    } else {
+      hojaReporte.clear(); // limpiar si ya existe
+    }
+    
+    // Leer datos de cartas
+    var datos = hojaDominio.getDataRange().getValues();
+    var activos = 0, vencidos = 0;
+    var linksVencidos = [];
+    
+    for (var i = 1; i < datos.length; i++) {
+      var carta = datos[i][0];  // Col A: Carta (hipervínculo)
+      var fechaAlta = datos[i][1];
+      var fechaVenc = datos[i][2];
+      var estado = datos[i][3];
+      var activo = datos[i][4];
+      
+      if (estado === "Vencida") {
+        vencidos++;
+        linksVencidos.push(carta);
+      } else if (estado === "Activa") {
+        activos++;
+      }
+    }
+    
+    var total = activos + vencidos;
+    var cumplimiento = total > 0 ? (activos / total * 100).toFixed(2) + "%" : "N/A";
+    
+    // Escribir resumen
+    hojaReporte.getRange("A1:D1").setValues([["Dominio", "Activos", "Vencidos", "Cumplimiento"]]);
+    hojaReporte.getRange("A2:D2").setValues([[dominio, activos, vencidos, cumplimiento]]);
+    
+    hojaReporte.getRange("F1").setValue("Cartas vencidas");
+    for (var j = 0; j < linksVencidos.length; j++) {
+      hojaReporte.getRange(j+2, 6).setFormula(linksVencidos[j]); // links de cartas vencidas
+    }
+    
+    hojaReporte.autoResizeColumns(1, 6);
+    hojaReporte.getRange("A1:D1").setFontWeight("bold");
+    
+    Logger.log("✅ Reporte generado: " + nombreReporte);
+  });
+}
+*/
+/**
+ * ==================================================
+ * MC: REPORTE SEMESTRAL (Debug de prueba)
+ * ==================================================
+ */
+function MC_DebugReporteSemestral() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var dominios = ["RISK", "CYBER", "AUDIT", "T&C", "TECH"];
+  var fechaHoy = new Date();
+  
+  // Determinar semestre
+  var periodo = Utilities.formatDate(fechaHoy, Session.getScriptTimeZone(), "yyyy") +
+                "_S" + (fechaHoy.getMonth() < 6 ? "1" : "2"); // S1: Ene-Jun, S2: Jul-Dic
+  
+  dominios.forEach(function(dominio) {
+    var hojaDominio = ss.getSheetByName(dominio);
+    if (!hojaDominio) {
+      Logger.log("⚠️ No existe hoja para dominio: " + dominio);
+      return;
+    }
+    
+    // Nombre único del reporte
+    var nombreReporte = "Reporte_" + dominio + "_" + periodo;
+    var hojaReporte = ss.getSheetByName(nombreReporte);
+    
+    if (!hojaReporte) {
+      hojaReporte = ss.insertSheet(nombreReporte);
+      Logger.log("🆕 Hoja creada: " + nombreReporte);
+    } else {
+      hojaReporte.clear(); // limpiar contenido si ya existe
+      Logger.log("♻️ Hoja existente actualizada: " + nombreReporte);
+    }
+    
+    // Leer datos de cartas responsivas del dominio
+    var datos = hojaDominio.getDataRange().getValues();
+    var activos = 0, vencidos = 0;
+    var linksVencidos = [];
+    
+    for (var i = 1; i < datos.length; i++) {
+      var carta = datos[i][0];  // Col A: Carta (hipervínculo)
+      var estado = datos[i][3]; // Col D: Estado
+      
+      if (estado === "Vencida") {
+        vencidos++;
+        linksVencidos.push(carta);
+      } else if (estado === "Activa") {
+        activos++;
+      }
+    }
+    
+    var total = activos + vencidos;
+    var cumplimiento = total > 0 ? (activos / total * 100).toFixed(2) + "%" : "N/A";
+    
+    // Escribir resumen en el reporte
+    hojaReporte.getRange("A1:D1").setValues([["Dominio", "Activos", "Vencidos", "Cumplimiento"]]);
+    hojaReporte.getRange("A2:D2").setValues([[dominio, activos, vencidos, cumplimiento]]);
+    
+    hojaReporte.getRange("F1").setValue("Cartas vencidas");
+    for (var j = 0; j < linksVencidos.length; j++) {
+      hojaReporte.getRange(j+2, 6).setFormula(linksVencidos[j]); // links
+    }
+    
+    // Formatos básicos
+    hojaReporte.autoResizeColumns(1, 6);
+    hojaReporte.getRange("A1:D1").setFontWeight("bold");
+    
+    Logger.log("✅ Reporte actualizado: " + nombreReporte);
+  });
+}

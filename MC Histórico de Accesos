@@ -1,0 +1,138 @@
+/**
+ * ==================================================
+ * MICROSERVICIO: HISTÓRICO DE ACCESOS
+ * Registra cada evento importante del sistema en una hoja de auditoría.
+ * ==================================================
+ */
+
+var CONFIG_HISTORICO = {
+  NOMBRE_HOJA: "HistóricoAccesos"
+};
+
+/**
+ * 🎯 Inicializa la hoja de histórico (si no existe)
+ * @returns {Sheet} La hoja de histórico
+ */
+function inicializarHojaHistorico() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var hoja = ss.getSheetByName(CONFIG_HISTORICO.NOMBRE_HOJA);
+  
+  if (!hoja) {
+    Logger.log("📋 Creando hoja de histórico...");
+    hoja = ss.insertSheet(CONFIG_HISTORICO.NOMBRE_HOJA);
+    
+    // Configurar headers
+    hoja.getRange("A1:H1").setValues([[
+      "Timestamp",
+      "Usuario",
+      "Cédula", 
+      "Email",
+      "Área",
+      "Sandbox",
+      "Acción",
+      "Detalles"
+    ]]);
+    
+    // Formatear headers
+    hoja.getRange("A1:H1").setFontWeight("bold");
+    hoja.setFrozenRows(1);
+    hoja.autoResizeColumns(1, 8);
+    
+    Logger.log("✅ Hoja de histórico creada: " + CONFIG_HISTORICO.NOMBRE_HOJA);
+  }
+  
+  return hoja;
+}
+
+/**
+ * 📝 Registra un evento en el histórico (Función principal del MC)
+ * @param {Object} datosUsuario - Información del usuario {nombre, cedula, email, area, sandbox}
+ * @param {String} accion - Tipo de acción (CREACIÓN, RENOVACIÓN, VENCIMIENTO, REVOCADO, NOTIFICACIÓN)
+ * @param {String} detalles - Texto adicional con contexto o observaciones
+ * @returns {Boolean} True si se registró exitosamente
+ */
+function MC_RegistrarEnHistorico(datosUsuario, accion, detalles) {
+  try {
+    Logger.log("📝 Registrando evento en histórico: " + accion);
+    
+    var hoja = inicializarHojaHistorico();
+    var ultimaFila = hoja.getLastRow() + 1;
+    
+    // Preparar datos para insertar
+    var nuevoRegistro = [
+      new Date(), // Timestamp
+      datosUsuario.nombre || "N/A",
+      datosUsuario.cedula || "N/A", 
+      datosUsuario.email || "N/A",
+      datosUsuario.area || "N/A",
+      datosUsuario.sandbox || "N/A",
+      accion,
+      detalles || ""
+    ];
+    
+    // Insertar en la hoja
+    hoja.getRange(ultimaFila, 1, 1, 8).setValues([nuevoRegistro]);
+    
+    Logger.log("✅ Evento registrado: " + accion + " - " + datosUsuario.nombre);
+    return true;
+    
+  } catch (e) {
+    Logger.log("❌ Error registrando en histórico: " + e.toString());
+    return false;
+  }
+}
+
+/**
+ * 🧪 FUNCIÓN DE PRUEBA del MC
+ * Simula diferentes eventos para verificar el funcionamiento
+ */
+function MC_PruebaHistorico() {
+  Logger.log("🧪 Iniciando prueba del MC de Histórico...");
+  
+  // Datos de prueba
+  var usuarioEjemplo = {
+    nombre: "Ana Torres",
+    cedula: "123456789", 
+    email: "ana.torres@empresa.com",
+    area: "Ciberseguridad",
+    sandbox: "CYBER"
+  };
+  
+  // Simular diferentes eventos
+  MC_RegistrarEnHistorico(usuarioEjemplo, "CREACIÓN", "Carta responsiva inicial generada con vigencia de 6 meses.");
+  
+  MC_RegistrarEnHistorico(usuarioEjemplo, "NOTIFICACIÓN", "Primer recordatorio enviado (30 días antes del vencimiento).");
+  
+  MC_RegistrarEnHistorico(usuarioEjemplo, "RENOVACIÓN", "Usuario renovó acceso con nueva carta responsiva.");
+  
+  MC_RegistrarEnHistorico(usuarioEjemplo, "VENCIMIENTO", "Acceso vencido por falta de renovación.");
+  
+  Logger.log("✅ Prueba completada. Revisa la hoja '" + CONFIG_HISTORICO.NOMBRE_HOJA + "'");
+}
+
+/**
+ * 📊 Obtener estadísticas del histórico
+ * @returns {Object} Conteo de eventos por tipo
+ */
+function MC_ObtenerEstadisticasHistorico() {
+  try {
+    var hoja = inicializarHojaHistorico();
+    var datos = hoja.getDataRange().getValues();
+    
+    // Contar eventos por tipo (omitir header)
+    var conteo = {};
+    for (var i = 1; i < datos.length; i++) {
+      var accion = datos[i][6]; // Columna G: Acción
+      if (accion) {
+        conteo[accion] = (conteo[accion] || 0) + 1;
+      }
+    }
+    
+    Logger.log("📊 Estadísticas del histórico: " + JSON.stringify(conteo));
+    return conteo;
+    
+  } catch (e) {
+    Logger.log("❌ Error obteniendo estadísticas: " + e.toString());
+    return {};
+  }
+}
