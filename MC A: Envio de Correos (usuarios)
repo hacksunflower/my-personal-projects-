@@ -1,0 +1,58 @@
+/**
+ * Microservicio 6: Envío de Cartas Responsivas con link desde Drive
+ * Busca la carta en la subcarpeta del dominio (AUDIT, CYBER, RISK, T&C, TECH)
+ * y envía correo al Sandbox Owner con el enlace.
+ */
+
+// ID de la carpeta principal que contiene subcarpetas por dominio
+var carpetaCartasId = "ID-CarpetadeDrive";
+
+/**
+ * Busca una carta responsiva en la subcarpeta del dominio
+ * @param {String} dominio - Nombre del dominio (AUDIT, CYBER, etc.)
+ * @param {String} nombreCarta - Texto de la carta en la hoja
+ * @return {String} URL de la carta o advertencia si no se encuentra
+ */
+function obtenerLinkCartaResponsiva(dominio, nombreCarta) {
+  try {
+    var carpetaPrincipal = DriveApp.getFolderById(carpetaCartasId);
+    var carpetas = carpetaPrincipal.getFoldersByName(dominio);
+    if (!carpetas.hasNext()) {
+      return "⚠️ No existe carpeta para dominio: " + dominio;
+    }
+
+    var carpetaDominio = carpetas.next();
+    var archivos = carpetaDominio.getFiles();
+    while (archivos.hasNext()) {
+      var file = archivos.next();
+      if (file.getName().toUpperCase().indexOf(nombreCarta.toUpperCase()) > -1) {
+        return file.getUrl();
+      }
+    }
+    return "⚠️ Carta '" + nombreCarta + "' no encontrada en dominio: " + dominio;
+  } catch (err) {
+    Logger.log("Error en obtenerLinkCartaResponsiva: " + err);
+    return "⚠️ Error al buscar carta";
+  }
+}
+
+/**
+ * Enviar correo con carta vencida o en renovación
+ */
+function enviarCorreoCarta(sheet, row, estado, emailOwner, dominio) {
+  var nombreCarta = sheet.getRange(row, 1).getValue(); // Col A: Nombre de la carta
+  var fechaVencimiento = sheet.getRange(row, 3).getDisplayValue(); // Col C: Vencimiento
+  var linkCarta = obtenerLinkCartaResponsiva(dominio, nombreCarta);
+
+  var asunto = "Carta Responsiva en estado: " + estado;
+  var mensaje = "Estimado/a Sandbox Owner,\n\n"
+              + "La carta '" + nombreCarta + "' se encuentra en estado: '" + estado + "'.\n\n"
+              + "Fecha de Vencimiento: " + fechaVencimiento + "\n\n"
+              + "📄 Link de la carta: " + linkCarta + "\n\n"
+              + "Saludos,\nSistema de Gestión Sandbox";
+
+  if (emailOwner) {
+    enviarCorreoConMailtrap(emailOwner, asunto, mensaje);
+    Logger.log("Correo enviado con carta '" + nombreCarta + "' a " + emailOwner);
+  }
+}
