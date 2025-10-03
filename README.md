@@ -12,7 +12,7 @@ Bienvenido a mi repositorio de proyectos personales. Aquí muestro mis habilidad
 - Git & GitHub
 
 ## 📂 Proyectos incluidos
-1. [Nombre del proyecto] - Breve descripción
+1. [Proyecto Sandbox 2.0] - Sandbox 2.0 es un sistema desarrollado con Google Apps Script, Google Sheets, Google Drive y Google Docs, diseñado para automatizar la gestión de accesos a entornos sandbox. El proyecto implementa una arquitectura basada en microservicios, cada uno responsable de una función específica, lo que permite mantener el sistema modular, escalable y fácil de mantener.
 2. [Nombre del proyecto] - Breve descripción
 3. [Nombre del proyecto] - Breve descripción
 
